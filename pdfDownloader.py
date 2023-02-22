@@ -30,9 +30,15 @@ class pdfDownloader:
                 savefile = str(self.pth + "dwn/" + str(j) + '.pdf')
                 try:
                    urllib.request.urlretrieve(self.df2.at[j,'Pdf_URL'], savefile)
-                except (urllib.error.HTTPError, urllib.error.URLError, ConnectionResetError, TimeoutError, ValueError) as e:
+                except Exception as e:
                     self.df2.at[j,"error"] = str(e)
                     print("Error downloading file", j, str(e))
+
+                    try:
+                        urllib.request.urlretrieve(self.df2.at[j,'Report Html Address'], savefile)
+                    except Exception as e:
+                        self.df2.at[j,"error"] = str(e)
+                        print("Error downloading file", j, str(e))
 
 
     def check(self):
@@ -41,27 +47,31 @@ class pdfDownloader:
             if os.path.isfile(savefile):
                 try:
                     pdfFileObj = open(savefile, 'rb')
-                    pdfReader = PyPDF2.PdfFileReader(pdfFileObj)
-                    if pdfReader.numPages > 0:
+                    pdfReader = PyPDF2.PdfReader(pdfFileObj)
+                    if len(pdfReader.pages) > 0:
                         self.df2.at[j, 'pdf_downloaded'] = "yes"
                     else:
-                        self.df2.at[j, 'pdf_downloaded'] = "file_error"
+                        os.remove(savefile)
+                        self.df2.at[j, 'pdf_downloaded'] = "No"
                 except Exception as e:
                     self.df2.at[j, 'pdf_downloaded'] = str(e)
                     print(str(str(j)+" " + str(e)))
+                    os.remove(savefile)
             else:
-                self.df2.at[j, 'pdf_downloaded'] = "404"
+                self.df2.at[j, 'pdf_downloaded'] = "No"
                 print("not a file")
 
     def save(self):
         self.df2.to_excel(self.pth + "pdf_downloads.xlsx")
 
+    def threader(self, func, args, n=500):
+        with concurrent.futures.ThreadPoolExecutor(max_workers=n) as executor:
+            executor.map(func, args)
+
     def run(self):
-        with concurrent.futures.ThreadPoolExecutor(max_workers=500) as executor:
-            executor.map(self.download, self.df2.index)
-        
-        # self.check()
-        # self.save()
+        self.threader(self.download, self.df2.index)
+        self.check()
+        self.save()
 
 if __name__ == "__main__":
     pth = ""
