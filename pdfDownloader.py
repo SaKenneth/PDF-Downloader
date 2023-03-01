@@ -10,7 +10,7 @@ import concurrent.futures
 from more_itertools import grouper
 
 
-socket.setdefaulttimeout(15)
+socket.setdefaulttimeout(30)
 
 class pdfDownloader:
     def __init__(self, list_pth, pth, ID):
@@ -29,37 +29,48 @@ class pdfDownloader:
             if j not in self.exist:
                 savefile = str(self.pth + "dwn/" + str(j) + '.pdf')
                 try:
-                   urllib.request.urlretrieve(self.df2.at[j,'Pdf_URL'], savefile)
+                    urllib.request.urlretrieve(self.df2.at[j,'Pdf_URL'], savefile)
+                    try:
+                        self.check(j, savefile)
+                    except Exception as e:
+                        self.df2.at[j,"error"] = str(e)
+                        # print("Error opening file", j, str(e))
                 except Exception as e:
                     self.df2.at[j,"error"] = str(e)
-                    print("Error downloading file", j, str(e))
+                    # print("Error downloading file", j, str(e))
 
                     try:
                         urllib.request.urlretrieve(self.df2.at[j,'Report Html Address'], savefile)
+                        try:
+                            self.check(j, savefile)
+                        except Exception as e:
+                            self.df2.at[j,"error"] = str(e)
+                            # print("Error opening file", j, str(e))
                     except Exception as e:
                         self.df2.at[j,"error"] = str(e)
-                        print("Error downloading file", j, str(e))
+                        # print("Error downloading file", j, str(e))
 
 
-    def check(self):
-        for j in self.df2.index:
-            savefile = str(self.pth + "dwn/" + str(j) + '.pdf')
-            if os.path.isfile(savefile):
-                try:
-                    pdfFileObj = open(savefile, 'rb')
-                    pdfReader = PyPDF2.PdfReader(pdfFileObj)
-                    if len(pdfReader.pages) > 0:
-                        self.df2.at[j, 'pdf_downloaded'] = "yes"
-                    else:
-                        os.remove(savefile)
-                        self.df2.at[j, 'pdf_downloaded'] = "No"
-                except Exception as e:
-                    self.df2.at[j, 'pdf_downloaded'] = str(e)
-                    print(str(str(j)+" " + str(e)))
-                    os.remove(savefile)
+    # check if pdf if empty or can be opened
+    def check(self, j, savefile):
+        try:
+            pdfFileObj = open(savefile, 'rb')
+            pdfReader = PyPDF2.PdfReader(pdfFileObj)
+            if pdfReader.is_encrypted:
+                pdfReader.decrypt('')
+            if len(pdfReader.pages) == 0:
+                self.df2.at[j,"error"] = "Empty"
+                print("Empty file", j)
+                pdfFileObj.close()
+                os.remove(savefile)
             else:
-                self.df2.at[j, 'pdf_downloaded'] = "No"
-                print("not a file")
+                self.df2.at[j,"error"] = "OK"
+                print("OK file", j)
+        except Exception as e:
+            self.df2.at[j,"error"] = str(e)
+            # print("Error opening file", j, str(e))
+            pdfFileObj.close()
+            os.remove(savefile)
 
     def save(self):
         self.df2.to_excel(self.pth + "pdf_downloads.xlsx")
@@ -70,7 +81,6 @@ class pdfDownloader:
 
     def run(self):
         self.threader(self.download, self.df2.index)
-        self.check()
         self.save()
 
 if __name__ == "__main__":
