@@ -1,13 +1,11 @@
 import pandas as pd
 import PyPDF2
-from pathlib import Path
-import shutil, os
+import os
 import os.path
 import urllib.request, urllib.error, urllib.parse
 import glob
 import socket
 import concurrent.futures
-from more_itertools import grouper
 
 
 socket.setdefaulttimeout(30)
